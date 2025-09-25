@@ -1,5 +1,5 @@
 import argparse
-
+import os
 import rasterio as rio
 from torchvision.utils import save_image
 from tqdm import tqdm
@@ -163,40 +163,27 @@ def test(ckpt, device, nickname, dataset_path):
         messagebox.showinfo("Done", f"Fusion complete! Files saved in {results_dir}")
 
 
-
-        ### FINS AQUÍ!
-
-        # profile = {
-        #     "fp": file,
-        #     "mode": "w",
-        #     "driver": "GTiff",
-        #     "width": width,
-        #     "height": height,
-        #     "count": count,
-        #     "crs": rio.crs.CRS.from_epsg(epsg),
-        #     "transform": rio.transform.from_bounds(west, new_south, new_east, north, width, height),
-        #     "dtype": data.dtype,
-        # }
-        #
-        # with rio.open(**profile) as dst:
-        #     for i in range(count):
-        #         dst.write(data[i], i + 1)
-
 #A PARTIR D'AQUI INVENTOMETRO
 
 def run_fuser():
     print("Loading checkpoints...")
     parser = argparse.ArgumentParser(description="Fuse script")
-    parser.add_argument('--ckpt_path', type=str, default='C:/Users/Usuario/PycharmProjects/S2API/checkpoints/GINet_best.ckpt', help='Path of the log file')
     parser.add_argument('--device', type=str, default='cuda:0', help='cuda:0')
     parser.add_argument('--nickname', type=str, default='All')
 
     args = parser.parse_args()
     device = args.device
 
-    imgs_folder = 'C:/Users/Usuario/BandesAPP/20250916_131310'
+    current_file = os.path.abspath(__file__)
+    src_dir = os.path.dirname(current_file)
 
-    ckpt = torch.load(args.ckpt_path, map_location=args.device, weights_only=False)
+    # Go up one level to reach the S2API folder
+    project_root = os.path.dirname(src_dir)
+
+    # Build the checkpoint path
+    default_ckpt = os.path.join(project_root, 'checkpoints', 'GINet_best.ckpt')
+
+    ckpt = torch.load(default_ckpt, map_location=args.device, weights_only=False)
     print('Checkpoints loaded')
 
     imgs_folder = picker.get()
