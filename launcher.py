@@ -20,12 +20,12 @@ def main():
     label.pack(pady=20)
 
     download_button = tk.Button(root, text="Download new products",
-                                command=lambda: run_and_return("downloader.py"),
+                                command=lambda: run_and_return("src/downloader.py"),
                                 width=30, height=2)
     download_button.pack(pady=10)
 
     fuse_button = tk.Button(root, text="Fuse products",
-                            command=lambda: run_and_return("fuser.py"),
+                            command=lambda: run_and_return("src/fuser.py"),
                             width=30, height=2)
     fuse_button.pack(pady=10)
 
