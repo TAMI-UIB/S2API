@@ -25,6 +25,51 @@ Given a set of coordinates and a time period, the app:
 
 ---
 
+## User Guide
+
+Follow these steps to get started with the **MaLiSat Toolbox**
+
+### 1. Clone the repository
+```bash
+git clone https://github.com/TAMI-UIB/S2API.git
+cd S2API
+```
+
+### 2. Create a virtual environment (optional but recommended)
+```bash
+# Create a virtual environment
+python -m venv venv
+
+# Activate it
+# Windows
+venv\Scripts\activate
+# Linux / Mac
+source venv/bin/activate
+```
+
+### 3. Install dependencies
+```bash
+pip install -r requirements.txt
+```
+⚠️ Make sure your Python version is compatible (Python 3.10 or higher recommended).
+
+### 4. Run the Launcher
+```bash
+python launcer.py
+```
+* The launcher will open a GUI asking whether to download new Sentinel-2 products or fuse existing products (in the following version, a marine litter detection option will be added).
+* For downloading, you’ll enter coordinates, select a date range, set max cloud cover, and choose a save directory.
+* If products are found, the app will ask how many to download.
+* For fusing, you just select the folder containing previously downloaded products.
+
+### 5. Notes
+* Internet connection required for downloading Sentinel-2 imagery.
+* The checkpoints folder must be present for the fuser (```checkpoints/GINet_best.ckpt```). The default path is automatically detected relative to the repo.
+* Output files are saved in the chosen folder (default: ```~/BandesAPP/```).
+* Running on GPU is strongly recommended.
+
+---
+
 ## Roadmap / To-Dos
 
 - [ ] Integrate segmentation network for marine litter detection  
