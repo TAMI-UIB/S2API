@@ -13,7 +13,6 @@ Given a set of coordinates and a time period, the app:
     [![arXiv](https://img.shields.io/badge/arXiv-2409.02675-B31B1B.svg)](https://arxiv.org/abs/2508.04729)
 3. *(Planned)* Feeds the enhanced images into a segmentation network to **detect marine litter**.
 
----
 
 ## Features
 
