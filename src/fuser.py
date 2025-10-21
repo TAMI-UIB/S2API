@@ -96,10 +96,12 @@ def test(ckpt, device, nickname, dataset_path):
         W2_new = W2 - w_rm * 6
         new_south = south + (north - south) * (h_rm / h)
         new_east = east - (east - west) * (w_rm / w)
-        hs = hs[:, :, :h_new, :w_new]
-        # pan = pan[:, :, :H_new, :W_new]
-        ms = ms[:, :, :H_new, :W_new]
-        kks = kks[:, :, :H2_new, :W2_new]
+        # hs = hs[:, :, :h_new, :w_new]
+        # ms = ms[:, :, :H_new, :W_new]
+        # kks = kks[:, :, :H2_new, :W2_new]
+        hs = hs[:, :, :384, :384]
+        ms = ms[:, :, :192, :192]
+        kks = kks[:, :, :64, :64]
 
 
         N, _, H, W = ms.size()
