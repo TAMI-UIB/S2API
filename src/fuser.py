@@ -72,43 +72,58 @@ def test(ckpt, device, nickname, dataset_path):
         #print(f'HS size: {hs.size()}')
         ms = R10img
         kks = R60img
-        #print(f'MS size: {ms.size()}')
+        
+        results_dir = f'{dataset_path}/{img_name}/Resultats'
+        os.makedirs(results_dir, exist_ok=True)
+
+        save_image(ms[0, [2, 1, 0], :, :], f"{results_dir}/Abans_abans_de_res_{img_name}.png")
+
+        print(f'MS size: {ms.size()}')
+        print(f'HS size: {hs.size()}')
+        print(f'KKs size: {kks.size()}')
         # pan = classical_pan(ms)
         # print(f'PAN size: {pan.size()}')
 
-        hs = hs.to(torch.float32)
+        hs = hs[:, :, :500, :500].to(torch.float32)#[:, :, :500, :500]
         # pan = pan.to(torch.float32)
-        ms = ms.to(torch.float32)
-        kks = kks.to(torch.float32)
+        ms = ms[:, :, :1000, :1000].to(torch.float32)#[:, :, :1000, :1000]
+        kks = kks[:, :, :200, :200].to(torch.float32)#[:, :, :200, :200]
+
+        last_folder = dataset_path.split("/")[-1]
+        results_dir = f'{dataset_path}/{img_name}/Resultats'
+        os.makedirs(results_dir, exist_ok=True)
+        save_image(ms[0, [2, 1, 0], :, :], f"{results_dir}/Abans_de_torch_res_{img_name}.png")
 
         N, C, h, w = hs.size()
         _, _, H, W = ms.size()
         _, _, H2, W2 = kks.size()
 
-        patch_size = 64
+        patch_size = 48
         h_rm = h % patch_size
         h_new = h - h_rm
         H_new = H - h_rm * 2
-        H2_new = H2 - h_rm * 6
+        H2_new = H2 - h_rm // 3
         w_rm = w % patch_size
         w_new = w - w_rm
         W_new = W - w_rm * 2
-        W2_new = W2 - w_rm * 6
+        W2_new = W2 - w_rm // 3
         new_south = south + (north - south) * (h_rm / h)
         new_east = east - (east - west) * (w_rm / w)
-        # hs = hs[:, :, :h_new, :w_new]
-        # ms = ms[:, :, :H_new, :W_new]
-        # kks = kks[:, :, :H2_new, :W2_new]
-        hs = hs[:, :, :384, :384]
-        ms = ms[:, :, :192, :192]
-        kks = kks[:, :, :64, :64]
-
+        hs = hs[:, :, :h_new, :w_new]
+        kks = kks[:, :, :H2_new, :W2_new]
+        ms = ms[:, :, :H_new, :W_new]
 
         N, _, H, W = ms.size()
         _, C, _, _ = hs.size()
 
-        print('Creating patches...')
+        last_folder = dataset_path.split("/")[-1]
+        results_dir = f'{dataset_path}/{img_name}/Resultats'
+        os.makedirs(results_dir, exist_ok=True)
 
+        save_image(ms[0, [2, 1, 0], :, :], f"{results_dir}/Abans_de_res_{img_name}.png")
+
+        print('Creating patches...')
+        # /home/tomeugarau/BandesAPP/20250925_152412
         hs_patcher = CreatePatches(hs, patch_size, False)
         hs_patches = hs_patcher.do_patches(hs)
         # pan_patcher = CreatePatches(pan, patch_size * 2, False)
@@ -116,7 +131,7 @@ def test(ckpt, device, nickname, dataset_path):
         ms_patcher = CreatePatches(ms, patch_size * 2, False)
         ms_patches = ms_patcher.do_patches(ms)
 
-        kks_patcher = CreatePatches(kks, patch_size * 6, False)
+        kks_patcher = CreatePatches(kks, patch_size // 3, False)
         kks_patches = kks_patcher.do_patches(kks)
         fused = []
         kkfused = []
@@ -124,6 +139,8 @@ def test(ckpt, device, nickname, dataset_path):
         print('Patches done')
 
         print('Fusing image...')
+
+
 
         for i in tqdm(range(hs_patches.size(0))):
             hs_p = hs_patches[[i]]
@@ -135,9 +152,13 @@ def test(ckpt, device, nickname, dataset_path):
                 # pan_p = pan_p.to(device)
                 ms_p = ms_p.to(device)
                 kks_p = kks_p.to(device)
+                # print(f'HS before fuse: {hs_p.size()}')
                 fused_p = model(hs=hs_p, pan=ms_p, ms=ms_p)
+                # print(f'HS after fuse: {fused_p['pred'].size()}')
                 fused_p = fused_p['pred']
+                # print(f'60M before bicubic: {kks_p.size()}')
                 kkfuse_p = bicubic_interpolate(kks_p, scale_factor=6)
+                # print(f'60M after bicubic: {kkfuse_p.size()}')
                 fused.append(fused_p.cpu())
                 kkfused.append(kkfuse_p.cpu())
 
@@ -146,32 +167,25 @@ def test(ckpt, device, nickname, dataset_path):
 
         ms_patcher.C = hs_patcher.C
         fused = ms_patcher.undo_patches(fused)
-        kks_patcher.C = hs_patcher.C
-        kkfused = kks_patcher.undo_patches(kkfused)
-
+        ms_patcher.C = kks_patcher.C
+        kkfused = ms_patcher.undo_patches(kkfused)
+        print(f'MS shape: {ms.size()}')
+        print(f'KKS shape: {kkfused.size()}')
+        print(f'Fused shape: {fused.size()}')
         # data = torch.cat((fused, ms), dim=1).squeeze()
-        data = torch.cat((kkfused[0], ms[0], ms[1], ms[2], fused[0], fused[1], fused[2], ms[3], fused[3], kkfused[1], fused[4], fused[5]), dim=1).squeeze()
+        data = torch.cat((kkfused[0,0:1], ms[0,0:1], ms[0,1:2], ms[0,2:3], fused[0,0:1], fused[0,1:2],
+                          fused[0,2:3], ms[0,3:4], fused[0,3:4], kkfused[0,1:2], fused[0,4:5], fused[0,5:6]))
         data = ((2**8-1) * data.numpy()).astype(np.uint8)
-
+        print(f'Fused shape: {data.shape}')
         count, height, width = data.shape
 
         print("Image fused. Now saving .tif file and image.")
 
         last_folder = dataset_path.split("/")[-1]
-        results_dir = f"C:/Users/Usuario/BandesAPP/Results/{last_folder}"
+        # results_dir = f"C:/Users/Usuario/BandesAPP/Results/{last_folder}"
+        results_dir = f'{dataset_path}/{img_name}/Resultats'
         os.makedirs(results_dir, exist_ok=True)
         tiff_path = f"{results_dir}/{img_name}_fused.tif"
-        #with rio.open(
-        #        tiff_path,
-        #        "w",
-        #        driver="GTiff",
-        #        height=height,
-        #        width=width,
-        #        count=count,
-        #        dtype="uint8"
-        #) as dst:
-        #    for i in range(count):
-        #        dst.write(data[i], i + 1)  # rasterio bands are 1-indexed
 
         profile = {
             "fp": tiff_path,
