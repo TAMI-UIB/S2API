@@ -24,9 +24,9 @@ class Experiment(pl.LightningModule):
         # Number of model parameters
         self.num_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
         # Metric calculator
-        self.metrics = {k: instantiate(cfg.metrics) for k in self.subsets}
+        #self.metrics = {k: instantiate(cfg.metrics) for k in self.subsets}
         # Loss report
-        self.loss = {subset: 0 for subset in self.fit_subsets}
+        #self.loss = {subset: 0 for subset in self.fit_subsets}
 
     def forward(self, pan, hs, ms):
 
@@ -36,14 +36,14 @@ class Experiment(pl.LightningModule):
 
         output = self.forward(pan=input['pan'], hs=input['hs'], ms=input['ms'])
         loss = self.loss_criterion(output, input['gt'])
-        self.loss_report(loss.item(), 'train')
+        #self.loss_report(loss.item(), 'train')
 
         return {"loss": loss, "output": output}
 
     def validation_step(self, input, idx, dataloader_idx=0):
         output = self.forward(pan=input['pan'], hs=input['hs'], ms=input['ms'])
         loss = self.loss_criterion(output, input['gt'])
-        self.loss_report(loss.item(), 'validation')
+        #self.loss_report(loss.item(), 'validation')
         return output
 
     def test_step(self, input, idx,  dataloader_idx=0):

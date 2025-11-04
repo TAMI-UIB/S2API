@@ -268,3 +268,13 @@ class TVLossSpectral(torch.nn.Module):
     #     dis = torch.sum(gate,dim=0)
     #     cv = torch.std(dis)/torch.mean(dis)
     #     return cv**2
+
+class SR_SSR_FusionLoss(torch.nn.Module):
+    def __init__(self,alpha_ms, alpha_hs,alpha_fusion):
+        super(SR_SSR_FusionLoss, self).__init__()
+        self.L1 = torch.nn.L1Loss()
+
+    def forward(self, output, gt):
+        pred = output['pred']
+        l1 = self.L1(pred, gt)
+        return l1

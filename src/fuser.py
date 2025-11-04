@@ -1,4 +1,5 @@
 import argparse
+import torch
 import os
 import rasterio as rio
 from torchvision.utils import save_image
@@ -72,7 +73,7 @@ def test(ckpt, device, nickname, dataset_path):
         #print(f'HS size: {hs.size()}')
         ms = R10img
         kks = R60img
-        
+
         results_dir = f'{dataset_path}/{img_name}/Resultats'
         os.makedirs(results_dir, exist_ok=True)
 
@@ -84,10 +85,10 @@ def test(ckpt, device, nickname, dataset_path):
         # pan = classical_pan(ms)
         # print(f'PAN size: {pan.size()}')
 
-        hs = hs[:, :, :500, :500].to(torch.float32)#[:, :, :500, :500]
+        hs = hs.to(torch.float32)
         # pan = pan.to(torch.float32)
-        ms = ms[:, :, :1000, :1000].to(torch.float32)#[:, :, :1000, :1000]
-        kks = kks[:, :, :200, :200].to(torch.float32)#[:, :, :200, :200]
+        ms = ms.to(torch.float32)
+        kks = kks.to(torch.float32)
 
         last_folder = dataset_path.split("/")[-1]
         results_dir = f'{dataset_path}/{img_name}/Resultats'
@@ -140,8 +141,6 @@ def test(ckpt, device, nickname, dataset_path):
 
         print('Fusing image...')
 
-
-
         for i in tqdm(range(hs_patches.size(0))):
             hs_p = hs_patches[[i]]
             # pan_p = pan_patches[[i]]
@@ -175,9 +174,10 @@ def test(ckpt, device, nickname, dataset_path):
         # data = torch.cat((fused, ms), dim=1).squeeze()
         data = torch.cat((kkfused[0,0:1], ms[0,0:1], ms[0,1:2], ms[0,2:3], fused[0,0:1], fused[0,1:2],
                           fused[0,2:3], ms[0,3:4], fused[0,3:4], kkfused[0,1:2], fused[0,4:5], fused[0,5:6]))
-        data = ((2**8-1) * data.numpy()).astype(np.uint8)
-        print(f'Fused shape: {data.shape}')
-        count, height, width = data.shape
+        # data = ((2**8-1) * data.numpy()).astype(np.uint8)
+        data_np = np.clip(data.numpy() * 255, 0, 255).astype(np.uint8)
+        print(f'Fused shape: {data_np.shape}')
+        count, height, width = data_np.shape
 
         print("Image fused. Now saving .tif file and image.")
 
@@ -196,19 +196,132 @@ def test(ckpt, device, nickname, dataset_path):
             "count": count,
             "crs": rio.crs.CRS.from_epsg(epsg),
             "transform": rio.transform.from_bounds(west, new_south, new_east, north, width, height),
-            "dtype": data.dtype,
+            "dtype": data_np.dtype,
         }
 
         with rio.open(**profile) as dst:
             for i in range(count):
-                dst.write(data[i], i + 1)
+                dst.write(data_np[i], i + 1)
 
         save_image(ms[0, [2, 1, 0], :, :], f"{results_dir}/{img_name}.png")
 
         messagebox.showinfo("Done", f"Fusion complete! Files saved in {results_dir}")
 
+        return torch.clip(data, 0, 1).unsqueeze(0)
 
-#A PARTIR D'AQUI INVENTOMETRO
+
+def detector(ckpt, device, dataset_path):
+    cfg = ckpt['cfg']
+    cfg.model.module._target_ = "src.model.detection.TAUNet.TAUNet"
+    cfg.model.name = "TAUNet"
+
+    cfg.devices = [0]
+
+    print("Loading model...")
+
+    weights = ckpt['state_dict']
+    experiment = Experiment(cfg)
+    experiment.load_state_dict(weights)
+    model = experiment.model.to(device)
+    model.eval()
+
+    for img_name in os.listdir(dataset_path):
+        # Step 1: find "Resultats" folder
+        resultats_path = os.path.join(dataset_path, img_name, "Resultats")
+        if not os.path.exists(resultats_path):
+            raise FileNotFoundError(f"'Resultats' folder not found in {dataset_path}")
+
+        # Step 2: find the only .tif/.tiff file
+        tiff_files = [f for f in os.listdir(resultats_path) if f.lower().endswith((".tif", ".tiff"))]
+        if len(tiff_files) == 0:
+            raise FileNotFoundError(f"No .tif/.tiff file found in {resultats_path}")
+        if len(tiff_files) > 1:
+            raise RuntimeError(f"More than one .tif/.tiff file found in {resultats_path}: {tiff_files}")
+
+        tiff_path = os.path.join(resultats_path, tiff_files[0])
+
+        # Step 3: open the GeoTIFF and extract bounds
+        with rio.open(tiff_path) as src:
+            img = src.read()  # shape: (C, H, W)
+            bounds = src.bounds  # returns (left, bottom, right, top)
+            crs_code = src.crs
+
+        west, south, east, north = bounds.left, bounds.bottom, bounds.right, bounds.top
+        fused = torch.from_numpy(img).unsqueeze(0)
+
+        N, C, h, w = fused.size()
+
+        patch_size = 64
+        h_rm = h % patch_size
+        h_new = h - h_rm
+        w_rm = w % patch_size
+        w_new = w - w_rm
+        new_south = south + (north - south) * (h_rm / h)
+        new_east = east - (east - west) * (w_rm / w)
+        fused = fused[:, :, :h_new, :w_new]
+
+        print('Creating patches...')
+        fused_patcher = CreatePatches(fused, patch_size, False)
+        fused_patches = fused_patcher.do_patches(fused)
+
+        fused = []
+        masks = []
+
+        for i in tqdm(range(fused_patches.size(0))):
+            # Testing ----
+            fused_patches = fused_patches.to(torch.float32)
+            # ----
+            fused_patch = fused_patches[[i]]
+            #print(fused_patch.size())
+            with torch.no_grad():
+                fused_patch = fused_patch.to(device)
+                # print(f'Fused patch: {fused_patch.size()}')
+                logits_patch = model(fused_patch)
+                # print(f'Logits patch: {logits_patch.size()}')
+                indices_bin = (torch.exp(logits_patch) > 0.3).int()
+                indices_bin = indices_bin.cpu()
+                # print(f'Indices patch: {indices_bin.size()}')
+                masks.append(indices_bin)
+
+
+        mask = torch.cat(masks, dim=0)
+        print(f'Mask after cat: {mask.size()}')
+
+        fused_patcher.C = 1
+        mask = fused_patcher.undo_patches(mask).squeeze()
+
+        mask_np = np.clip(mask.numpy() * 255, 0, 255).astype(np.uint8)
+        print(f'Fused shape: {mask_np.shape}')
+        height, width = mask_np.shape
+        count = 1
+        print("Image fused. Now saving .tif file and image.")
+
+        # last_folder = dataset_path.split("/")[-1]
+        # # results_dir = f"C:/Users/Usuario/BandesAPP/Results/{last_folder}"
+        results_dir = f'{dataset_path}/{img_name}/Resultats_Detection'
+        os.makedirs(results_dir, exist_ok=True)
+        tiff_path = f"{results_dir}/{img_name}_mask.tif"
+
+        profile = {
+            "fp": tiff_path,
+            "mode": "w",
+            "driver": "GTiff",
+            "width": width,
+            "height": height,
+            "count": count,
+            "crs": crs_code,
+            "transform": rio.transform.from_bounds(west, new_south, new_east, north, width, height),
+            "dtype": mask_np.dtype,
+        }
+
+        with rio.open(**profile) as dst:
+            for i in range(count):
+                dst.write(mask_np, i + 1)
+
+        # save_image(mask_np, f"{results_dir}/{img_name}.png")
+
+        messagebox.showinfo("Done", f"Detection complete! Files saved in {results_dir}")
+
 
 def run_fuser():
     print("Loading checkpoints...")
@@ -233,7 +346,14 @@ def run_fuser():
 
     imgs_folder = picker.get()
 
-    test(ckpt, args.device, args.nickname, imgs_folder)
+    # fused = test(ckpt, args.device, args.nickname, imgs_folder)
+
+    detection_ckpt = os.path.join(project_root, 'checkpoints', 'TAUNet_best.ckpt')
+
+    ckpt2 = torch.load(detection_ckpt, map_location=args.device, weights_only=False)
+    print('Checkpoints loaded')
+
+    detector(ckpt2, args.device, imgs_folder)
 
 class DirectoryPicker(ttk.Frame):
     def __init__(self, parent, **kwargs):
