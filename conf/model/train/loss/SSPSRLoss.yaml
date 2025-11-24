@@ -1,0 +1,4 @@
+_target_: utils.losses.SSPSRLoss
+lamd: 1e-1
+spatial_tv: True
+spectral_tv: True

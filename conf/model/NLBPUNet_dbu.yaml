@@ -1,0 +1,26 @@
+defaults:
+  - _self_
+  - train/optimizer: ADAM
+  - train/scheduler: MultiStepLR
+  - train/loss: L1Loss
+
+name: "NLBPUNet_dbu"
+type: fusion
+shared: False
+module:
+  _target_: model.${model.type}.NLBPUNet_dbu.NLBPUNet_clusters
+  sampling: ${dataset.sampling}
+  ms_channels: 4
+  hs_channels: ${dataset.channels}
+  features: 128
+  patch_size: 3
+  window_size: 5
+  iter_stages: 6
+  kernel_size: 3
+  conv_kernel: Res_NL
+  classes: 5
+train:
+  batch_size: 3
+  num_workers: 8
+  max_epochs: 1500
+

@@ -1,0 +1,11 @@
+name: Sentinel2Urban
+channels: 6
+sampling: 2
+datamodule:
+  _target_: src.data.fusion.Sentinel2_fullresolution.Sentinel2
+  dataset_path: ${oc.env:DATASET_PATH}/${dataset.name}
+  test_path: test
+  batch_size: ${model.train.batch_size}
+  num_workers: ${model.train.num_workers}
+  patch_size: 120
+  sampling: ${dataset.sampling}

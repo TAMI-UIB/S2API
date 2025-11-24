@@ -1,0 +1,17 @@
+defaults:
+  - _self_
+  - train/optimizer: ADAM
+  - train/scheduler: MultiStepLR
+  - train/loss: SR_SSR_FusionLoss
+
+name: TAUNet
+module:
+  _target_: src.model.detection.TAUNet.TAUNet
+  input_channels: 12
+  hidden_channels: 64
+  patch_size: 1
+  n_classes: 1
+train:
+  batch_size: 4
+  max_epochs: 200
+  num_workers: 16

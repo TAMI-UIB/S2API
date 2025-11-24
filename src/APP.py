@@ -1,0 +1,174 @@
+import argparse
+
+import rasterio
+from torchvision.utils import save_image
+from tqdm import tqdm
+import numpy as np
+
+from src.base import Experiment
+from src.utils.patchwork import CreatePatches
+
+from src.app_scripts.downloader import BandDownloader
+from src.app_scripts.band_loader_functions import *
+
+
+def test(ckpt, device, nickname, dataset_path):
+
+    cfg = ckpt['cfg']
+    cfg.devices = [0]
+
+    weights = ckpt['state_dict']
+    experiment = Experiment(cfg)
+    experiment.load_state_dict(weights)
+    model = experiment.model.to(device)
+    model.eval()
+
+    print('Model loaded')
+
+    R10_bands = ['B02_10m.jp2', 'B03_10m.jp2', 'B04_10m.jp2', 'B08_10m.jp2']
+    R20_bands = ['B05_20m.jp2', 'B06_20m.jp2', 'B07_20m.jp2', 'B8A_20m.jp2', 'B11_20m.jp2', 'B12_20m.jp2']
+
+    for img_name in os.listdir(dataset_path):
+
+        r10m_folder = os.path.join(dataset_path, img_name, 'R10m')
+        r20m_folder = os.path.join(dataset_path, img_name, 'R20m')
+
+        # List files in the folders
+        R10files = os.listdir(r10m_folder)
+        R20files = os.listdir(r20m_folder)
+
+        # Load R10 bands
+        r10bands = load_bands(R10files, R10_bands, r10m_folder)
+        R10img = torch.stack([torch.from_numpy(band).unsqueeze(0) for band in r10bands], dim=1)
+
+        # Load R20 bands
+        r20bands = load_bands(R20files, R20_bands, r20m_folder)
+        R20img = torch.stack([torch.from_numpy(band).unsqueeze(0) for band in r20bands], dim=1)
+
+        # Define coordinates
+        info_path = os.path.join(r10m_folder, R10files[1])
+        west, south, east, north = get_bounds_sentinel(info_path)
+        epsg = get_epsg_from_jp2(info_path)
+
+        print('Bands read')
+
+        # Set
+        hs = R20img
+        print(f'HS size: {hs.size()}')
+        ms = R10img
+        print(f'MS size: {ms.size()}')
+        # pan = classical_pan(ms)
+        # print(f'PAN size: {pan.size()}')
+
+        hs = hs.to(torch.float32)
+        # pan = pan.to(torch.float32)
+        ms = ms.to(torch.float32)
+
+        N, C, h, w = hs.size()
+        _, _, H, W = ms.size()
+
+        patch_size = 64
+        h_rm = h % patch_size
+        h_new = h - h_rm
+        H_new = H - h_rm * 2
+        w_rm = w % patch_size
+        w_new = w - w_rm
+        W_new = W - w_rm * 2
+        new_south = south + (north - south) * (h_rm / h)
+        new_east = east - (east - west) * (w_rm / w)
+        hs = hs[:, :, :h_new, :w_new]
+        # pan = pan[:, :, :H_new, :W_new]
+        ms = ms[:, :, :H_new, :W_new]
+
+
+        N, _, H, W = ms.size()
+        _, C, _, _ = hs.size()
+
+        print('Doing patches...')
+
+        hs_patcher = CreatePatches(hs, patch_size, False)
+        hs_patches = hs_patcher.do_patches(hs)
+        # pan_patcher = CreatePatches(pan, patch_size * 2, False)
+        # pan_patches = pan_patcher.do_patches(pan)
+        ms_patcher = CreatePatches(ms, patch_size * 2, False)
+        ms_patches = ms_patcher.do_patches(ms)
+        fused = []
+        # for using tqdm
+        print('Patches done')
+
+        for i in tqdm(range(hs_patches.size(0))):
+            hs_p = hs_patches[[i]]
+            # pan_p = pan_patches[[i]]
+            ms_p = ms_patches[[i]]
+            with torch.no_grad():
+                hs_p = hs_p.to(device)
+                # pan_p = pan_p.to(device)
+                ms_p = ms_p.to(device)
+                fused_p = model(hs=hs_p, pan=ms_p, ms=ms_p)
+                fused_p = fused_p['pred']
+                fused.append(fused_p.cpu())
+
+        fused = torch.cat(fused, dim=0)
+
+        ms_patcher.C = hs_patcher.C
+        fused = ms_patcher.undo_patches(fused)
+
+
+        data = torch.cat((fused, ms), dim=1).squeeze()
+        data = ((2**8-1) * data.numpy()).astype(np.uint8)
+
+        count, height, width = data.shape
+
+        print("Let's a save!")
+        last_folder = dataset_path.split("/")[-1]
+        results_dir = f"C:/Users/Usuario/BandesAPP/Results/{last_folder}"
+        os.makedirs(results_dir, exist_ok=True)
+        tiff_path = f"{results_dir}/{img_name}_fused.tif"
+        with rasterio.open(
+                tiff_path,
+                "w",
+                driver="GTiff",
+                height=height,
+                width=width,
+                count=count,
+                dtype="uint8"
+        ) as dst:
+            for i in range(count):
+                dst.write(data[i], i + 1)  # rasterio bands are 1-indexed
+
+        save_image(ms[0, [2, 1, 0], :, :], f"{results_dir}/{img_name}.png")
+
+        ### FINS AQUÍ!
+
+        # profile = {
+        #     "fp": file,
+        #     "mode": "w",
+        #     "driver": "GTiff",
+        #     "width": width,
+        #     "height": height,
+        #     "count": count,
+        #     "crs": rio.crs.CRS.from_epsg(epsg),
+        #     "transform": rio.transform.from_bounds(west, new_south, new_east, north, width, height),
+        #     "dtype": data.dtype,
+        # }
+        #
+        # with rio.open(**profile) as dst:
+        #     for i in range(count):
+        #         dst.write(data[i], i + 1)
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="Fuse script")
+    parser.add_argument('--ckpt_path', type=str, default='C:/Users/Usuario/PycharmProjects/S2API/checkpoints/GINet_best.ckpt', help='Path of the log file')
+    parser.add_argument('--device', type=str, default='cuda:0', help='cuda:0')
+    parser.add_argument('--nickname', type=str, default='All')
+
+    args = parser.parse_args()
+    device = args.device
+
+    # imgs_folder = BandDownloader()
+    imgs_folder = 'C:/Users/Usuario/BandesAPP/20250919_102032'
+
+    ckpt = torch.load(args.ckpt_path, map_location=args.device, weights_only=False)
+    print('ckpt loaded')
+    test(ckpt, args.device, args.nickname, imgs_folder)
+

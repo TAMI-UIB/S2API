@@ -1,0 +1,33 @@
+defaults:
+  - _self_
+  - model: NLBPUNet_dbu
+  - dataset: Sentinel2
+save_image: True
+sampling: 2
+hydra:
+  run:
+    dir: ./
+
+# Otros parámetros globales
+seed: 42
+devices:
+  - 0
+day: ${now:%Y-%m-%d}
+metrics:
+  _target_: utils.metrics.MetricCalculator
+  metrics_list:
+    - PSNR
+    - SSIM
+    - ERGAS
+    - SAM
+nickname: "All"
+
+checkpoint:
+  _target_:  pytorch_lightning.callbacks.ModelCheckpoint
+  monitor: 'PSNR'
+  filename: 'best'
+  save_last: True
+  mode: 'max'
+  every_n_epochs: 1
+  every_n_train_steps: 0
+  save_on_train_epoch_end: True
