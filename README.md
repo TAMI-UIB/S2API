@@ -11,8 +11,11 @@ Given a set of coordinates and a time period, the app:
    The GINet is the architecture proposed in _Super-Resolution of Sentinel-2 Images Using a Geometry-Guided Back-Projection Network with Self-Attention_, available on arXiv:
 
     [![arXiv](https://img.shields.io/badge/arXiv-2409.02675-B31B1B.svg)](https://arxiv.org/abs/2508.04729)
-3. *(Planned)* Feeds the enhanced images into a segmentation network to **detect marine litter**.
+3. Feeds the enhanced images into a segmentation network to **detect marine litter**.
 
+   The TAUNet is the architecture proposed in _Transformer Assisted U-Net for Marine Litter Detection on Sentinel-2 Imagery_, available on EarthArXiv:
+   
+   [![EarthArXiv](https://img.shields.io/badge/EarthArXiv-10424-green.svg)](https://eartharxiv.org/repository/view/10424/)
 
 ## Features
 
