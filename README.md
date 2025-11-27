@@ -20,7 +20,7 @@ Given a set of coordinates and a time period, the app:
 - ⏳ Choose a time interval  
 - ⬇️ Automatic download of Sentinel-2 products  
 - 🔍 Super-resolution of 20 m bands with GINet  
-- 🧪 Early experimental stage (pre-alpha)
+- 🧪 Experimental stage (alpha)
 
 ---
 
@@ -54,7 +54,7 @@ pip install -r requirements.txt
 
 ### 4. Run the Launcher
 ```bash
-python launcer.py
+python launcher.py
 ```
 * The launcher will open a GUI asking whether to download new Sentinel-2 products or fuse existing products (in the following version, a marine litter detection option will be added).
 * For downloading, you’ll enter coordinates, select a date range, set max cloud cover, and choose a save directory.
@@ -71,7 +71,7 @@ python launcer.py
 
 ## Roadmap / To-Dos
 
-- [ ] Integrate segmentation network for marine litter detection  
+- [X] Integrate segmentation network for marine litter detection  
 - [ ] Improve data handling for large areas and long time spans  
 - [ ] Build a user-friendly interface (CLI / web app)  
 - [ ] Add unit tests and benchmarking against baseline methods  
