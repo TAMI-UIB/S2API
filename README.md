@@ -1,6 +1,6 @@
 # The MaLiSat Toolbox (Beta) 🌊🛰️
 
-**Authors:** D. Torres, B. Garau, F. Alcover, I. Pereira-Sánchez, J. Navarro, C. Sbert, J. Duran, S. Deudero, C. Alomar, B. Coll
+**Authors:** I. Pereira-Sánchez, D. Torres, F. Alcover, B. Garau, C. Alomar, B. Coll, J. Navarro, C. Sbert, S. Deudero, J. Duran.
 
 Sea2Net is a research tool designed to streamline the workflow of working with Sentinel-2 (S2) satellite imagery for marine applications.  
 Given a set of coordinates and a time period, the app:
