@@ -77,4 +77,8 @@ python launcher.py
 - [X] Integrate segmentation network for marine litter detection  
 - [ ] Improve data handling for large areas and long time spans  
 - [ ] Build a user-friendly interface (CLI / web app)  
-- [ ] Add unit tests and benchmarking against baseline methods  
+- [ ] Add unit tests and benchmarking against baseline methods
+
+## Acknowledgements
+
+This work was funded by MCIN/AEI/10.13039/501100011033/ and by the European Union NextGenerationEU/PRTR via the MaLiSat project TED2021-132644B-I00.
